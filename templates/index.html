@@ -1,0 +1,71 @@
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Speech Emotion Recognition</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="container">
+    <h1>Speech Emotion Recognition</h1>
+    <div class="card">
+      <h2>Record Your Voice</h2>
+      <p>Speak naturally and we'll analyze your emotional state</p>
+      <button id="recordBtn">
+        🎤
+      </button>
+      <p id="statusText"></p>
+      <p id="resultText"></p>
+    </div>
+    <p class="footer">This app analyzes speech to detect emotions across seven categories. Speak clearly for best results.</p>
+  </div>
+
+  <script>
+    let mediaRecorder;
+    let audioChunks = [];
+
+    const recordBtn = document.getElementById("recordBtn");
+    const statusText = document.getElementById("statusText");
+    const resultText = document.getElementById("resultText");
+
+    recordBtn.addEventListener("click", async () => {
+      if (mediaRecorder && mediaRecorder.state === "recording") {
+        mediaRecorder.stop();
+        statusText.textContent = "Recording stopped, processing...";
+      } else {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+
+        audioChunks = [];
+        mediaRecorder.ondataavailable = event => {
+          if (event.data.size > 0) audioChunks.push(event.data);
+        };
+
+        mediaRecorder.onstop = async () => {
+          const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+          const formData = new FormData();
+          formData.append("audio", audioBlob, "recording.wav");
+
+          const response = await fetch("/predict", {
+            method: "POST",
+            body: formData,
+          });
+
+          const result = await response.json();
+          if (result.error) {
+            resultText.textContent = "Error: " + result.error;
+          } else {
+            resultText.textContent = `Emotion: ${result.emotion} (Confidence: ${(result.confidence * 100).toFixed(2)}%)`;
+          }
+
+          statusText.textContent = "";
+        };
+
+        mediaRecorder.start();
+        statusText.textContent = "Recording... Click again to stop.";
+      }
+    });
+  </script>
+</body>
+</html>
